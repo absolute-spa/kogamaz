@@ -8,7 +8,7 @@
 // Тег релиза пишется с буквой v (v1.0.0), здесь - без неё.
 namespace AppVersion {
 
-inline const char *String = "1.0.0";
+inline const char *String = "1.0.1";
 
 }
 
