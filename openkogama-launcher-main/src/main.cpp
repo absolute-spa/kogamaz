@@ -1,10 +1,13 @@
 #include "links.h"
 #include "mainwindow.h"
+#include "settings.h"
 #include "theme.h"
 #include "updater.h"
 
 #include <QApplication>
+#include <QLibraryInfo>
 #include <QTimer>
+#include <QTranslator>
 
 int main(int argc, char *argv[])
 {
@@ -20,6 +23,32 @@ int main(int argc, char *argv[])
     // из-за чего тема читала бы не тот settings.ini.
     a.setOrganizationName("KoGaMaZ");
     a.setApplicationName("KoGaMaZ");
+
+    // Переводчик ставим до создания окон: весь текст задаётся в конструкторах,
+    // и более поздняя установка уже ничего не перепишет.
+    //
+    // Переводчики объявлены НЕ в блоке, а на весь main(): Qt снимает
+    // переводчик, как только он уничтожен, - локальная переменная внутри if
+    // отменила бы перевод сразу после выхода из блока.
+    //
+    // Свой файл переводит лаунчер, qtbase_* - стандартные кнопки Qt
+    // (OK, Cancel, Yes/No), которые приходят из его библиотек, а не из нашего
+    // кода, поэтому своим .qm их не покрыть.
+    QTranslator launcherTranslator;
+    QTranslator qtTranslator;
+    const QString language = Settings::language();
+    if (!language.isEmpty() && language != QLatin1String("en")) {
+        if (launcherTranslator.load(QLatin1String(":/i18n/kogamaz_") + language
+                                    + QLatin1String(".qm"))) {
+            a.installTranslator(&launcherTranslator);
+        } else {
+            qWarning("kogamaz i18n: no translation for %s", qPrintable(language));
+        }
+        if (qtTranslator.load(QLatin1String("qtbase_") + language,
+                              QLibraryInfo::path(QLibraryInfo::TranslationsPath))) {
+            a.installTranslator(&qtTranslator);
+        }
+    }
 
     // Самозамена портативной сборки: отдельный короткожизненный процесс,
     // который ждёт закрытия старого лаунчера, ставит файлы на место и

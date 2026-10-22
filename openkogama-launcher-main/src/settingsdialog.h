@@ -6,6 +6,7 @@
 #include <QList>
 #include <QtGlobal>
 
+class QComboBox;
 class QHostAddress;
 class QLabel;
 class QPushButton;
@@ -26,6 +27,9 @@ public:
     void accept() override;
 
 private:
+    // Язык интерфейса. Ставится первой группой: это свойство самого лаунчера,
+    // а не отдельной службы, и игроку логично искать его вверху.
+    void buildLanguageGroup();
     void buildThemeGroup();
     void buildNetworkGroup();
     // Соц-профиль: адрес своего сервера, пароль аккаунта, вход/регистрация.
@@ -56,6 +60,7 @@ private:
     Ui::SettingsDialog *ui;
     QTableWidget *m_serverTable = nullptr;
     QPushButton *m_accentButton = nullptr;
+    QComboBox *m_languageCombo = nullptr;
     QLabel *m_status = nullptr;
     QString m_activeServer;
     class QLineEdit *m_socialUrl = nullptr;

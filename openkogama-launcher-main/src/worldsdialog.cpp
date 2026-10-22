@@ -311,10 +311,16 @@ void WorldsDialog::filterWorlds() {
     if (!current || current->isHidden())
         ui->worldsList->setCurrentItem(first);
     int total = ui->worldsList->count();
-    ui->worldSearchLineEdit->setPlaceholderText(total > 0 ? "Search " + QString::number(total) + (total == 1 ? " world..." : " worlds...") : "Search your worlds...");
+    // Счётчик в плейсхолдере через tr(): склейку "Search " + n + " worlds..."
+    // lupdate не разбирает, и плейсхолдер оставался английским.
+    ui->worldSearchLineEdit->setPlaceholderText(
+        total > 0
+            ? (total == 1 ? tr("Search %1 world...").arg(total)
+                          : tr("Search %1 worlds...").arg(total))
+            : tr("Search your worlds..."));
     ui->worldStatusLabel->setText(total == 0
-        ? "No worlds yet. Click New world to create one, or Import to open a saved file."
-        : visible == 0 ? "No worlds match your search." : QString());
+        ? tr("No worlds yet. Click New world to create one, or Import to open a saved file.")
+        : visible == 0 ? tr("No worlds match your search.") : QString());
     ui->worldStatusLabel->setVisible(!ui->worldStatusLabel->text().isEmpty());
     updateWorldActions();
 }
@@ -336,10 +342,15 @@ void WorldsDialog::filterAvatars() {
     if (!current || current->isHidden())
         ui->avatarsList->setCurrentItem(first);
     int total = ui->avatarsList->count();
-    ui->avatarSearchLineEdit->setPlaceholderText(total > 0 ? "Search " + QString::number(total) + (total == 1 ? " avatar..." : " avatars...") : "Search your avatars...");
-    ui->avatarStatusLabel->setText(!m_hasAvatarEditor ? "This game version has no avatar editor. Choose another version to edit characters."
-        : total == 0 ? "No avatars yet. Open the avatar editor to create your character."
-        : visible == 0 ? "No avatars match your search." : QString());
+    ui->avatarSearchLineEdit->setPlaceholderText(
+        total > 0
+            ? (total == 1 ? tr("Search %1 avatar...").arg(total)
+                          : tr("Search %1 avatars...").arg(total))
+            : tr("Search your avatars..."));
+    ui->avatarStatusLabel->setText(!m_hasAvatarEditor
+        ? tr("This game version has no avatar editor. Choose another version to edit characters.")
+        : total == 0 ? tr("No avatars yet. Open the avatar editor to create your character.")
+        : visible == 0 ? tr("No avatars match your search.") : QString());
     ui->avatarStatusLabel->setVisible(!ui->avatarStatusLabel->text().isEmpty());
     updateAvatarActions();
 }
@@ -1076,10 +1087,14 @@ void WorldsDialog::filterInventory() {
     if (!current || current->isHidden())
         ui->inventoryList->setCurrentItem(first);
     int total = ui->inventoryList->count();
-    ui->inventorySearchLineEdit->setPlaceholderText(total > 0 ? "Search " + QString::number(total) + (total == 1 ? " item..." : " items...") : "Search your inventory...");
+    ui->inventorySearchLineEdit->setPlaceholderText(
+        total > 0
+            ? (total == 1 ? tr("Search %1 item...").arg(total)
+                          : tr("Search %1 items...").arg(total))
+            : tr("Search your inventory..."));
     ui->inventoryStatusLabel->setText(total == 0
-        ? "No items yet. Import a model from openkogama.org/models, or add one to your inventory in build mode."
-        : visible == 0 ? "No items match your search." : QString());
+        ? tr("No items yet. Import a model from openkogama.org/models, or add one to your inventory in build mode.")
+        : visible == 0 ? tr("No items match your search.") : QString());
     ui->inventoryStatusLabel->setVisible(!ui->inventoryStatusLabel->text().isEmpty());
     updateInventoryActions();
 }

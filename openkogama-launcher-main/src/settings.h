@@ -33,6 +33,13 @@ void setLastInstance(const QString &path);
 QString nickname();
 void setNickname(const QString &name);
 
+// Язык интерфейса: "en" или "ru". Пусто - берём английский, он же язык
+// исходников. Выбирается в настройках и применяется к окнам, открытым после
+// переключения: готовые окна перерисовывать проще всего заново, чем вручную
+// обновлять каждую подпись.
+QString language();
+void setLanguage(const QString &code);
+
 // KoGaMaZ social: адрес своего соц-сервера (пусто = соц-функции выключены),
 // токен сессии и ID аккаунта, выданные сервером после входа или регистрации.
 QString socialUrl();

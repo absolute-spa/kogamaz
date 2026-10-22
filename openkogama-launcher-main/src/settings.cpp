@@ -109,6 +109,19 @@ void setNickname(const QString &name)
     store().setValue("player/nickname", name);
 }
 
+QString language()
+{
+    // Пусто по умолчанию - лаунчер на английском, как и написан исходник.
+    // Держим код в отдельном ключе, а не в QLocale: игрок должен выбирать язык
+    // сам, а не получать его из системы.
+    return store().value("ui/language").toString().trimmed().toLower();
+}
+
+void setLanguage(const QString &code)
+{
+    store().setValue("ui/language", code.trimmed().toLower());
+}
+
 QString socialUrl()
 {
     // Пусто по умолчанию: пользователь сам указывает адрес своего сервера.

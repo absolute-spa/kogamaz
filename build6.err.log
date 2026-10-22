@@ -1,0 +1,15 @@
+CMake Warning at C:/Users/serge/Videos/KoGaMaZ/tools/Qt/6.10.2/mingw_64/lib/cmake/Qt6/QtPublicDependencyHelpers.cmake:335 (message):
+  This project is using headers of the CorePrivate module and will therefore
+  be tied to this specific Qt module build version.  Running this project
+  against other versions of the Qt modules may crash at any arbitrary point.
+  This is not a bug, but a result of using Qt internals.  You have been
+  warned!
+
+  You can disable this warning by setting QT_NO_PRIVATE_MODULE_WARNING to ON.
+Call Stack (most recent call first):
+  C:/Users/serge/Videos/KoGaMaZ/tools/Qt/6.10.2/mingw_64/lib/cmake/Qt6CorePrivate/Qt6CorePrivateConfig.cmake:48 (_qt_internal_show_private_module_warning)
+  C:/Users/serge/Videos/KoGaMaZ/tools/Qt/6.10.2/mingw_64/lib/cmake/Qt6/Qt6Config.cmake:241 (find_package)
+  CMakeLists.txt:4 (find_package)
+
+
+Warning: Cannot find any version of the dxcompiler.dll and dxil.dll.

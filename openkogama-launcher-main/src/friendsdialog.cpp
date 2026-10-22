@@ -3,6 +3,7 @@
 #include "chatdialog.h"
 #include "settings.h"
 
+#include <QCoreApplication>
 #include <QHBoxLayout>
 #include <QDateTime>
 #include <QLabel>
@@ -275,8 +276,10 @@ void FriendsDialog::loadPosts(const QString &player)
         if (list.isEmpty()) {
             auto *item = new QListWidgetItem(self->m_posts);
             auto *label = new QLabel(player.isEmpty()
-                ? self->tr("No posts yet. Share something above.")
-                : self->tr("No posts yet."), self->m_posts);
+                ? QCoreApplication::translate(
+                      "FriendsDialog", "No posts yet. Share something above.")
+                : QCoreApplication::translate("FriendsDialog", "No posts yet."),
+                self->m_posts);
             label->setWordWrap(true);
             label->setStyleSheet(QStringLiteral("color: #8b949e;"));
             item->setSizeHint(label->sizeHint());
@@ -391,7 +394,8 @@ void FriendsDialog::loadHosting()
         const QList<Social::Hosted> list = Social::hostedListOf(json);
         if (list.isEmpty()) {
             auto *item = new QListWidgetItem(self->m_hosting);
-            auto *label = new QLabel(self->tr("Nobody is hosting openly right now."), self->m_hosting);
+            auto *label = new QLabel(QCoreApplication::translate(
+        "FriendsDialog", "Nobody is hosting openly right now."), self->m_hosting);
             label->setStyleSheet(QStringLiteral("color: #8b949e;"));
             item->setSizeHint(label->sizeHint());
             self->m_hosting->setItemWidget(item, label);
@@ -442,7 +446,10 @@ void FriendsDialog::loadFriends()
         const QList<Social::Friend> list = Social::friendListOf(json);
         if (list.isEmpty()) {
             auto *empty = new QListWidgetItem(self->m_friends);
-            auto *label = new QLabel(self->tr("No friends yet. Search for a nickname above and send a request."), self->m_friends);
+            auto *label = new QLabel(QCoreApplication::translate(
+        "FriendsDialog",
+        "No friends yet. Search for a nickname above and send a request."),
+        self->m_friends);
             label->setWordWrap(true);
             label->setStyleSheet(QStringLiteral("color: #8b949e;"));
             empty->setSizeHint(label->sizeHint());
@@ -504,7 +511,10 @@ void FriendsDialog::runSearch()
         const QList<Social::SearchHit> hits = Social::hitListOf(json);
         if (hits.isEmpty()) {
             auto *item = new QListWidgetItem(self->m_results);
-            auto *label = new QLabel(self->tr("Nobody with that nickname."), self->m_results);
+            // self - QPointer, поэтому tr() через него lupdate не разбирает:
+            // берём контекст явно, иначе строка не попадёт в файл перевода.
+            auto *label = new QLabel(QCoreApplication::translate(
+                "FriendsDialog", "Nobody with that nickname."), self->m_results);
             label->setStyleSheet(QStringLiteral("color: #8b949e;"));
             item->setSizeHint(label->sizeHint());
             self->m_results->setItemWidget(item, label);

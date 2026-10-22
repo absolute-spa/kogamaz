@@ -1,0 +1,12 @@
+Qt:    C:\Users\serge\Videos\KoGaMaZ\tools\Qt\6.10.2\mingw_64
+g++:   C:\Users\serge\Videos\KoGaMaZ\tools\Qt\Tools\mingw1310_64\bin\g++.exe
+ninja: C:\Users\serge\Videos\KoGaMaZ\tools\ninja\ninja.exe
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- Configuring done (0.6s)
+-- Generating done (0.2s)
+-- Build files have been written to: C:/Users/serge/Videos/KoGaMaZ/build
+[1/4] Automatic MOC and UIC for target KoGaMaZ
+[2/3] Building CXX object CMakeFiles/KoGaMaZ.dir/src/settingsdialog.cpp.obj
+[3/3] Linking CXX executable KoGaMaZ.exe
+-- Install configuration: "Release"
+-- Installing: C:\Users\serge\Videos\KoGaMaZ\dist/bin/KoGaMaZ.exe

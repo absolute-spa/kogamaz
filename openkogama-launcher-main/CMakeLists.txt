@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 project(KoGaMaZ LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core CorePrivate Widgets Network Concurrent)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core CorePrivate Widgets Network Concurrent LinguistTools)
 
 qt_standard_project_setup()
 
@@ -68,6 +68,19 @@ qt_add_resources(KoGaMaZ "resources"
         resources/plus.svg
         resources/plus-light.svg
         resources/arrow-down-light.svg
+)
+
+# Переводы. .ts собирается в .qm прямо на этапе сборки и вшивается в exe
+# ресурсом - портативный zip остаётся одним файлом без установки переводов
+# рядом. Путь ресурса /i18n/kogamaz_ru.qm читает main.cpp.
+qt_add_lrelease(KoGaMaZ
+    TS_FILES translations/kogamaz_ru.ts
+    QM_FILES_OUTPUT_VARIABLE kogamaz_qm_files
+)
+qt_add_resources(KoGaMaZ "i18n"
+    PREFIX "/i18n"
+    BASE "${CMAKE_CURRENT_BINARY_DIR}"
+    FILES ${kogamaz_qm_files}
 )
 
 include(FetchContent)

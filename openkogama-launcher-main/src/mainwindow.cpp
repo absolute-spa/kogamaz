@@ -156,12 +156,12 @@ MainWindow::MainWindow(QWidget *parent)
     ui->brandLayout->addStretch(1);
     ui->brandLayout->addWidget(m_stats);
     m_servers = new ServersPage(this);
-    ui->mainTabs->insertTab(1, m_servers, "Servers");
+    ui->mainTabs->insertTab(1, m_servers, tr("Servers"));
     connect(m_servers, &ServersPage::joinRequested, this, &MainWindow::joinServer);
     // Профиль с постами - отдельная вкладка в боковом меню, под Versions,
     // как просили: больше не надо лезть в меню File ради своей ленты.
     m_profile = new ProfilePage(this);
-    ui->mainTabs->addTab(m_profile, "Profile");
+    ui->mainTabs->addTab(m_profile, tr("Profile"));
     connect(m_profile, &ProfilePage::signInRequested, this, [this]() {
         SettingsDialog(this).exec();
         m_stats->refresh();
@@ -453,8 +453,17 @@ void MainWindow::filterInstances() {
     if (!current.isValid() || ui->instancesView->isRowHidden(current.row()))
         ui->instancesView->setCurrentIndex(first >= 0 ? instances->index(first, 0) : QModelIndex());
     int total = instances->rowCount();
-    ui->versionSearchLineEdit->setPlaceholderText(total > 0 ? "Search " + QString::number(total) + (total == 1 ? " version..." : " versions...") : "Search your versions...");
-    ui->versionStatusLabel->setText(total > 0 && visible == 0 ? "No versions match your search." : QString());
+    // Счётчик в плейсхолдере: раньше строка собиралась склейкой
+    // ("Search " + n + " versions..."), из-за чего lupdate не видел её и
+    // плейсхолдер оставался английским при любом языке. Теперь через tr()
+    // с плейсхолдером %1.
+    ui->versionSearchLineEdit->setPlaceholderText(
+        total > 0
+            ? (total == 1 ? tr("Search %1 version...").arg(total)
+                          : tr("Search %1 versions...").arg(total))
+            : tr("Search your versions..."));
+    ui->versionStatusLabel->setText(total > 0 && visible == 0
+        ? tr("No versions match your search.") : QString());
     ui->versionStatusLabel->setVisible(!ui->versionStatusLabel->text().isEmpty());
     updateInstanceActions();
 }

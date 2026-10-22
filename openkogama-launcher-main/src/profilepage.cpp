@@ -1,6 +1,7 @@
 #include "profilepage.h"
 #include "settings.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -100,7 +101,10 @@ void ProfilePage::loadAccount()
         const qint64 exp = static_cast<qint64>(json.value(QLatin1String("exp")).toDouble());
         // Уровень показываем здесь же: сервер хранит только опыт, а уровень
         // считает из него - игрок должен видеть результат в обоих местах.
-        self->m_account->setText(self->tr("Signed in as %1 (@%2) - Level %3, %4 exp")
+        // self - QPointer, поэтому tr() через него lupdate не разбирает:
+        // берём контекст явно, иначе строка не попадёт в файл перевода.
+        self->m_account->setText(QCoreApplication::translate(
+            "ProfilePage", "Signed in as %1 (@%2) - Level %3, %4 exp")
                                      .arg(nick, handle)
                                      .arg(level)
                                      .arg(exp));
@@ -121,7 +125,8 @@ void ProfilePage::loadPosts()
         const QList<Social::Post> list = Social::postListOf(json);
         if (list.isEmpty()) {
             auto *item = new QListWidgetItem(self->m_posts);
-            auto *label = new QLabel(self->tr("No posts yet. Share something above."), self->m_posts);
+            auto *label = new QLabel(QCoreApplication::translate(
+                "ProfilePage", "No posts yet. Share something above."), self->m_posts);
             label->setWordWrap(true);
             label->setStyleSheet(QStringLiteral("color: #8b949e;"));
             item->setSizeHint(label->sizeHint());
@@ -154,7 +159,8 @@ void ProfilePage::loadPosts()
 
             // Удалять можно только свои посты - чужой профиль остаётся
             // чужой редакцией, как и на сервере.
-            auto *remove = new QPushButton(self->tr("Delete"), row);
+            auto *remove = new QPushButton(
+                QCoreApplication::translate("ProfilePage", "Delete"), row);
             remove->setObjectName("deletePostButton");
             const QString id = post.id;
             QObject::connect(remove, &QPushButton::clicked, self.data(), [self, id]() {

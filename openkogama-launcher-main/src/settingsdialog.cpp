@@ -7,6 +7,8 @@
 
 #include <QAbstractSocket>
 #include <QColorDialog>
+#include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QGroupBox>
 #include <QHash>
@@ -109,6 +111,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     ui->consoleOnCrashCheck->setChecked(Settings::consoleOnCrash());
     ui->discordPresenceCheck->setChecked(Settings::discordPresence());
 
+    buildLanguageGroup();
     buildThemeGroup();
     buildNetworkGroup();
     buildSocialGroup();
@@ -119,6 +122,58 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 SettingsDialog::~SettingsDialog()
 {
     delete ui;
+}
+
+void SettingsDialog::buildLanguageGroup()
+{
+    auto *group = new QGroupBox(tr("Language"), this);
+    auto *outer = new QVBoxLayout(group);
+    outer->setSpacing(6);
+
+    auto *row = new QHBoxLayout;
+    row->setSpacing(8);
+
+    auto *label = new QLabel(tr("Interface language:"), group);
+
+    m_languageCombo = new QComboBox(group);
+    m_languageCombo->setObjectName("languageCombo");
+    m_languageCombo->setFixedHeight(28);
+    // Названия языков пишем на них самих - так принято везде, и «английский»
+    // по-английски выглядит бы неправильно. Поэтому эту строку не переводим.
+    m_languageCombo->addItem(QStringLiteral("English"), QStringLiteral("en"));
+    // QString::fromUtf8, а не QStringLiteral: макрос не имеет членов, и
+    // QStringLiteral::fromUtf8 не скомпилируется. Байты записаны в hex
+    // ("Русский" в UTF-8), чтобы результат не зависел от того,
+    // какую кодировку исходника компилятор решит предположить.
+    m_languageCombo->addItem(QString::fromUtf8("\xD0\xA0\xD1\x83\xD1\x81\xD1\x81\xD0\xBA\xD0\xB8\xD0\xB9"),
+                             QStringLiteral("ru"));
+
+    // Пустой код означает английский - он же язык исходников.
+    const QString stored = Settings::language();
+    const int current = m_languageCombo->findData(
+        stored.isEmpty() ? QStringLiteral("en") : stored);
+    // currentIndex выставляем явно: с заданным placeholder'ом комбобокс
+    // остаётся с индексом -1, и тогда сохранялся бы пустой код языка.
+    m_languageCombo->setCurrentIndex(current < 0 ? 0 : current);
+    connect(m_languageCombo, &QComboBox::currentIndexChanged, this, [this](int) {
+        Settings::setLanguage(m_languageCombo->currentData().toString());
+    });
+
+    row->addWidget(label);
+    row->addWidget(m_languageCombo);
+    row->addStretch(1);
+    outer->addLayout(row);
+
+    // Честно предупреждаем: текст задаётся в конструкторах окон, поэтому
+    // уже открытые окна остаются на старом языке. Вновь открытые диалоги
+    // переведутся сразу.
+    auto *hint = new QLabel(
+        tr("Applies to the windows you open after restarting the launcher."), group);
+    hint->setWordWrap(true);
+    hint->setStyleSheet(QStringLiteral("color: #8b949e;"));
+    outer->addWidget(hint);
+
+    ui->verticalLayout->insertWidget(0, group);
 }
 
 void SettingsDialog::buildThemeGroup()
@@ -472,9 +527,12 @@ void SettingsDialog::updateSocialStatus()
         const Social::Account account = Social::accountOf(json);
         Settings::setSocialId(account.id);
         if (!account.handle.isEmpty()) Settings::setSocialHandle(account.handle);
+        // self - QPointer, поэтому tr() через него lupdate не разбирает:
+        // берём контекст явно, иначе строка не попадёт в файл перевода.
         self->m_socialStatus->setText(account.handle.isEmpty()
-            ? self->tr("Signed in as %1.").arg(account.nick)
-            : self->tr("Signed in as %1 (@%2).").arg(account.nick, account.handle));
+            ? QCoreApplication::translate("SettingsDialog", "Signed in as %1.").arg(account.nick)
+            : QCoreApplication::translate("SettingsDialog", "Signed in as %1 (@%2).")
+                  .arg(account.nick, account.handle));
     });
 }
 
