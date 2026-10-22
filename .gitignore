@@ -1,0 +1,41 @@
+# Сборка
+build/
+build-*/
+out/
+dist/
+*.o
+*.obj
+*.a
+*.so
+*.dll
+*.exe
+
+# Портативный архив и распакованная сборка
+KoGaMaZ.zip
+KoGaMaZ/
+
+# Зависимости и рантаймы
+node_modules/
+player/
+server/
+
+# Средства разработки (Qt, CMake) - сотни мегабайт бинарей, не исходники
+tools/
+
+# Локальные секреты и настройки
+.env
+.env.*
+*.local.json
+server.local.json
+
+# База локального соц-сервера
+social.json
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+
+# Отладка
+apply-debug.txt
