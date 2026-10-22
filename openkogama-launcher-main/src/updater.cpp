@@ -165,12 +165,12 @@ QByteArray fetchLatest(QString *error)
 
 Update download() {
     Update update;
+    // Один блок на весь Velopack: раньше создание менеджера стояло в отдельном
+    // try с ранним return, и при исключении портативная сборка не доходила до
+    // своего механизма обновления вовсе - лаунчер просто молчал и никогда не
+    // узнавал о наших релизах. Теперь любая неудача Velopack ведёт в фолбэк.
     try {
         update.manager = managerFor(false);
-    } catch (const std::exception &) {
-        return update;
-    }
-    try {
         if (update.manager->GetCurrentVersion().find('-') != std::string::npos)
             update.manager = managerFor(true);
         update.info = update.manager->CheckForUpdates();
@@ -178,14 +178,24 @@ Update download() {
             update.manager->DownloadUpdates(*update.info);
     } catch (const std::exception &error) {
         // Ожидаемый путь для portable zip: Velopack обновляет только то, что
-        // установлено их инсталлятором. Тогда честно пробуем свой механизм.
+        // установлено их инсталлятором.
         qWarning("Velopack update unavailable: %s", error.what());
         update.info.reset();
+    }
+
+    // Свой механизм нужен портативной сборке, и пробуем его ВСЕГДА, когда
+    // штатное обновление не дало результата - в том числе когда Velopack не
+    // упал, а просто ответил «обновлений нет». Иначе достаточно было бы, чтобы
+    // их запрос прошёл без исключения, и лаунчер навсегда перестал бы узнавать
+    // о наших релизах - молча.
+    if (!update.info) {
         try {
             QString why;
             const QByteArray body = fetchLatest(&why);
             if (why.isEmpty())
                 update.release = UpdateCheck::parse(body);
+            else
+                qWarning("Update check failed: %s", qPrintable(why));
         } catch (const std::exception &fallback) {
             qWarning("Update check failed: %s", fallback.what());
         }
@@ -246,8 +256,21 @@ void Updater::check(QWidget *window) {
         // Скачивание, распаковка и запуск самозамены - в фоне, чтобы окно
         // не зависло на десятках мегабайт.
         QtConcurrent::run([window, release = update.release]() {
+            // Всё, что пошло не так, обязано дойти до игрока: молчаливый отказ
+            // («нажал Обновить - и тишина») читается как сломанное обновление
+            // лаунчера целиком. Окно показываем через главный поток - из
+            // фонового Qt рисовать диалоги нельзя.
+            const auto report = [window](const QString &text) {
+                QMetaObject::invokeMethod(window, [window, text]() {
+                    QMessageBox::warning(window, QObject::tr("Update"), text);
+                }, Qt::QueuedConnection);
+            };
+
             QTemporaryDir payload;
-            if (!payload.isValid()) return;
+            if (!payload.isValid()) {
+                report(QObject::tr("Could not create a temporary folder for the update."));
+                return;
+            }
             const QString zip = payload.filePath("update.zip");
 
             QNetworkAccessManager net;
@@ -257,14 +280,30 @@ void Updater::check(QWidget *window) {
             QEventLoop loop;
             QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
             loop.exec();
+            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
             const QByteArray archive = reply->readAll();
+            const QString failure = reply->errorString();
+            const bool broken = reply->error() != QNetworkReply::NoError;
             reply->deleteLater();
-            if (archive.isEmpty()) return;
+            // GitHub отвечает на 404/403/5xx телом JSON - это не архив, и без
+            // проверки статуса дальше упал бы молча сам tar.
+            if (broken || status >= 400 || archive.isEmpty()) {
+                report(QObject::tr("Could not download the update (%1).").arg(
+                    failure.isEmpty() ? QObject::tr("HTTP %1").arg(status) : failure));
+                return;
+            }
 
             QFile file(zip);
-            if (!file.open(QIODevice::WriteOnly)) return;
-            file.write(archive);
+            if (!file.open(QIODevice::WriteOnly)) {
+                report(QObject::tr("Could not write the update to disk."));
+                return;
+            }
+            const qint64 written = file.write(archive);
             file.close();
+            if (written != archive.size()) {
+                report(QObject::tr("Not enough disk space for the update."));
+                return;
+            }
 
             // Windows 10+ поставляет tar.exe, умеющий распаковывать zip -
             // не тащим в проект свой экстрактор.
@@ -272,7 +311,10 @@ void Updater::check(QWidget *window) {
             QDir().mkpath(unpack);
             QProcess tar;
             tar.start("tar", {"-xf", zip, "-C", unpack});
-            if (!tar.waitForFinished(120000) || tar.exitCode() != 0) return;
+            if (!tar.waitForFinished(120000) || tar.exitCode() != 0) {
+                report(QObject::tr("The downloaded file is not a valid update archive."));
+                return;
+            }
 
             // В zip корень с папкой KoGaMaZ/ - ищем каталог с exe.
             QString root = unpack;
@@ -281,7 +323,10 @@ void Updater::check(QWidget *window) {
                 const QString dir = it.next();
                 if (QFileInfo::exists(dir + "/KoGaMaZ.exe")) { root = dir; break; }
             }
-            if (!QFileInfo::exists(root + "/KoGaMaZ.exe")) return;
+            if (!QFileInfo::exists(root + "/KoGaMaZ.exe")) {
+                report(QObject::tr("The update archive does not contain KoGaMaZ.exe."));
+                return;
+            }
 
             const QString appDir = QCoreApplication::applicationDirPath();
             QProcess::startDetached(QDir(root).filePath("KoGaMaZ.exe"),
