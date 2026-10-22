@@ -1,0 +1,14 @@
+[Unit]
+Description=KoGaMaZ server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kogamaz
+WorkingDirectory=/opt/kogamaz/data
+ExecStart=/usr/bin/dotnet /opt/kogamaz/app/openkogama-server.dll
+Restart=on-failure
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

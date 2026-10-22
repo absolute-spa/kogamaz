@@ -1,0 +1,7 @@
+{
+  "title": "KoGaMaZ",
+  "publicUrl": "http://RADMIN_IP:8080",
+  "listenHost": "+",
+  "mixedClients": true,
+  "keepPlayChanges": true
+}

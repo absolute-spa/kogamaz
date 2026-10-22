@@ -1,0 +1,97 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag
+        required: true
+      publish:
+        description: create the github release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag }}
+      REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: openkogama-launcher
+      - uses: actions/checkout@v4
+        with:
+          repository: openkogama/openkogama-player
+          path: openkogama-player
+      - uses: actions/checkout@v4
+        with:
+          repository: openkogama/openkogama-server
+          path: openkogama-server
+      - uses: actions/checkout@v4
+        with:
+          repository: openkogama/openkogama-photon
+          path: openkogama-photon
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: 6.10.2
+          arch: win64_mingw
+          tools: tools_mingw1310
+          cache: true
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: server
+        run: dotnet publish openkogama-server/openkogama-server.csproj -c Release -r win-x64 --self-contained -o dist/server
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+      - name: player
+        shell: cmd
+        run: |
+          cmake -S openkogama-player -B build/player -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl || exit /b 1
+          cmake --build build/player || exit /b 1
+          mkdir dist\player
+          copy build\player\openkogama-player.exe dist\player\ || exit /b 1
+          xcopy /e /i /q build\player\versions dist\player\versions || exit /b 1
+
+      - name: launcher
+        shell: cmd
+        run: |
+          set PATH=%IQTA_TOOLS%\mingw1310_64\bin;%PATH%
+          cmake -S openkogama-launcher -B build/launcher -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_INSTALL_BINDIR=. || exit /b 1
+          cmake --build build/launcher || exit /b 1
+          cmake --install build/launcher --prefix "%CD%\dist" || exit /b 1
+
+      - name: package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          Copy-Item openkogama-launcher/LICENSE dist/LICENSE.txt
+          dotnet tool install -g vpk --version 1.2.161
+          $version = $env:TAG.TrimStart("v")
+          $pre = @()
+          if ($version -match "-") { $pre = @("--pre") }
+          vpk download github --repoUrl $env:REPO_URL --token $env:GH_TOKEN -o releases @pre
+          vpk pack --packId KoGaMaZ --packVersion $version --packDir dist --mainExe KoGaMaZ.exe --packTitle "KoGaMaZ" --packAuthors KoGaMaZ --icon openkogama-launcher/resources/openkogama.ico -o releases
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: releases
+          path: releases
+      - name: release
+        if: inputs.publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pre = @()
+          if ($env:TAG -match "-") { $pre = @("--pre") }
+          vpk upload github --repoUrl $env:REPO_URL --token $env:GH_TOKEN -o releases --publish --releaseName $env:TAG --tag $env:TAG --targetCommitish $env:GITHUB_SHA @pre

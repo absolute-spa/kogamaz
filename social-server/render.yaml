@@ -1,0 +1,21 @@
+# Render blueprint for the KoGaMaZ social server.
+#
+# Deploy: push this folder to a GitHub repo -> Render -> New -> Blueprint -> pick repo.
+# The database is NOT created here on purpose: free app hosts have an ephemeral
+# filesystem, so a SQLite file would be wiped on every redeploy. Create a free
+# Postgres (Neon, no card needed) and paste its URL into DATABASE_URL below.
+
+services:
+  - type: web
+    name: kogamaz-social
+    runtime: node
+    plan: free
+    region: frankfurt        # closest to the Russian/EU players by ping
+    buildCommand: npm install --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+      - key: DATABASE_URL
+        sync: false          # paste the Neon/Postgres connection string here

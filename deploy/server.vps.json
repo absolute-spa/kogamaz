@@ -1,0 +1,8 @@
+{
+  "title": "KoGaMaZ",
+  "thumbnail": "thumbnail.jpg",
+  "publicUrl": "https://YOUR-DOMAIN.example",
+  "mixedClients": true,
+  "keepPlayChanges": true,
+  "public": true
+}

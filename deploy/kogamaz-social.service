@@ -1,0 +1,19 @@
+[Unit]
+Description=KoGaMaZ social server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kogamaz
+WorkingDirectory=/opt/kogamaz/social
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=3
+Environment=NODE_ENV=production
+# Порт свой, а не 8080: на 8080 уже слушает игровой сервер.
+Environment=PORT=3100
+# За nginx серверу незачем быть видимым снаружи - наружу ходит nginx.
+Environment=HOST=127.0.0.1
+
+[Install]
+WantedBy=multi-user.target
