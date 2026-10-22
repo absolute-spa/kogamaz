@@ -20,7 +20,12 @@ namespace Updater {
 bool applyIfNeeded(int &argc, char **argv);
 
 void startup();
-void check(QWidget *window);
+
+// Проверяет обновления. Автопроверка (manual = false) молчит, если проверка
+// не удалась: без сети лаунчер не должен пугать окном при каждом запуске.
+// Ручная (manual = true) обязана ответить в любом случае - и обновлением, и
+// тем, что проверка прошла, и тем, почему её не удалось выполнить.
+void check(QWidget *window, bool manual = false);
 
 // Текущая версия лаунчера, зашитая в exe.
 const char *version();

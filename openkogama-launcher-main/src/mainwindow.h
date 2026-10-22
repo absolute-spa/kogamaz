@@ -35,6 +35,12 @@ public:
     ~MainWindow();
     void openLink(const QString &link);
 
+    // Пункт «Проверить обновления» выполняет проверку через этот колбэк.
+    // Реализация лежит в updater.cpp, который тянет Velopack и намеренно не
+    // входит в тестовые цели: иначе тестам понадобилась бы их DLL, а сами они
+    // обновления не проверяют.
+    void setUpdateCheck(std::function<void()> check);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
 
@@ -74,6 +80,9 @@ private:
     bool startLocalServer(const QString &version, QProcess **server);
     void syncNav();
 
+    // См. setUpdateCheck(): пусто, пока main.cpp не подключил проверку - в
+    // тестах пункт меню молчит, а не падает.
+    std::function<void()> m_updateCheck;
     Ui::MainWindow *ui;
     QStandardItemModel *instances;
     QByteArray m_versionsJson;

@@ -6,8 +6,10 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDeadlineTimer>
 #include <QDesktopServices>
+#include <QDir>
 #include <QDirIterator>
 #include <QEventLoop>
 #include <QFileInfo>
@@ -83,6 +85,25 @@ bool copyOver(const QString &src, const QString &dst, QString *error)
     return true;
 }
 
+// Распакованный payload переживает наше закрытие (см. download(): новому
+// процессу он нужен, пока мы ещё живы), поэтому чистим его здесь - позже,
+// когда прошлое обновление уже точно применилось.
+//
+// Возраст нужен, чтобы не снести каталог, которым прямо сейчас пользуется
+// идущая самозамена: там новый процесс сначала ждёт выхода старого PID.
+void sweepStalePayloads()
+{
+    const QString temp = QDir::tempPath();
+    const QDateTime cutoff = QDateTime::currentDateTime().addSecs(-15 * 60);
+    const QStringList names = QDir(temp).entryList(QStringList() << QLatin1String("kogamaz-update-*"),
+                                                   QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &name : names) {
+        const QString path = temp + QLatin1Char('/') + name;
+        if (QFileInfo(path).lastModified() > cutoff) continue;
+        QDir(path).removeRecursively();
+    }
+}
+
 }
 
 bool Updater::applyIfNeeded(int &argc, char **argv)
@@ -127,6 +148,10 @@ const char *Updater::version()
 
 void Updater::startup() {
     Velopack::VelopackApp::Build().Run();
+    // Прошлое обновление уже применилось и нам больше не нужно - убираем его.
+    // Вызывается после applyIfNeeded, то есть процесс самозамены сюда не
+    // доходит и не сотрёт каталог, из которого сам же работает.
+    sweepStalePayloads();
 }
 
 namespace {
@@ -136,6 +161,9 @@ struct Update {
     std::optional<Velopack::UpdateInfo> info;
     // Заполнено, если лаунчер запущен из portable zip: тогда обновляет себя сам.
     UpdateCheck::Release release;
+    // Причина неудачи собственной проверки. Автопроверке она не нужна (та
+    // молчит), зато ручная обязана объяснить, почему ответа нет.
+    QString error;
 };
 
 std::shared_ptr<Velopack::UpdateManager> managerFor(bool prerelease) {
@@ -192,11 +220,20 @@ Update download() {
         try {
             QString why;
             const QByteArray body = fetchLatest(&why);
-            if (why.isEmpty())
+            if (why.isEmpty()) {
                 update.release = UpdateCheck::parse(body);
-            else
+                // Пустой результат бывает двояким: релизов нет или тело
+                // непонятное. Ручной режим обязан их различать, иначе
+                // «проверить обновления» соврало бы «у вас последняя версия»,
+                // получив битый ответ.
+                if (!update.release.isValid() && QJsonDocument::fromJson(body).isNull())
+                    update.error = QObject::tr("unexpected reply from the update server");
+            } else {
+                update.error = why;
                 qWarning("Update check failed: %s", qPrintable(why));
+            }
         } catch (const std::exception &fallback) {
+            update.error = QString::fromUtf8(fallback.what());
             qWarning("Update check failed: %s", fallback.what());
         }
     }
@@ -205,9 +242,10 @@ Update download() {
 
 }
 
-void Updater::check(QWidget *window) {
+void Updater::check(QWidget *window, bool manual) {
     auto *watcher = new QFutureWatcher<Update>(window);
-    QObject::connect(watcher, &QFutureWatcher<Update>::finished, window, [watcher, window]() {
+    QObject::connect(watcher, &QFutureWatcher<Update>::finished, window,
+                     [watcher, window, manual]() {
         Update update = watcher->result();
         watcher->deleteLater();
 
@@ -228,8 +266,25 @@ void Updater::check(QWidget *window) {
         }
 
         // 2. Портативная сборка: сравниваем версию exe с тегом релиза.
-        if (!update.release.isValid()) return;
-        if (!Version::isNewer(update.release.version, QString::fromLatin1(AppVersion::String))) return;
+        //
+        // Автопроверка здесь молчит - иначе каждый запуск без сети показывал бы
+        // окно с ошибкой. Ручная обязана ответить в любом случае: «проверить
+        // обновления», которые молчат, игрок читает как поломку лаунчера.
+        if (!update.release.isValid()) {
+            if (manual)
+                QMessageBox::warning(window, QObject::tr("Update"),
+                    update.error.isEmpty()
+                        ? QObject::tr("Could not check for updates.")
+                        : QObject::tr("Could not check for updates: %1").arg(update.error));
+            return;
+        }
+        if (!Version::isNewer(update.release.version, QString::fromLatin1(AppVersion::String))) {
+            if (manual)
+                QMessageBox::information(window, QObject::tr("Update"),
+                    QObject::tr("No updates. You have KoGaMaZ %1.")
+                        .arg(QString::fromLatin1(AppVersion::String)));
+            return;
+        }
 
         QMessageBox box(window);
         box.setWindowTitle(QObject::tr("Update available"));
@@ -266,7 +321,16 @@ void Updater::check(QWidget *window) {
                 }, Qt::QueuedConnection);
             };
 
-            QTemporaryDir payload;
+            // Папку НЕ удаляем при выходе: распакованный каталог - исходник для
+            // самозамены, а новый процесс копирует из него уже ПОСЛЕ того, как мы
+            // закроемся (ему сначала нужно дождаться выхода старого PID, до 30 с).
+            //
+            // С автоудалением деструктор срабатывал раньше, чем начиналось
+            // копирование: в целевую установку попадало 15 файлов из 487, лаунчер
+            // «обновлялся», но по факту оставался старым и полузаменённым.
+            // Имя с префиксом нужно, чтобы нашёл его sweepStalePayloads().
+            QTemporaryDir payload(QDir::tempPath() + QLatin1String("/kogamaz-update-XXXXXX"));
+            payload.setAutoRemove(false);
             if (!payload.isValid()) {
                 report(QObject::tr("Could not create a temporary folder for the update."));
                 return;

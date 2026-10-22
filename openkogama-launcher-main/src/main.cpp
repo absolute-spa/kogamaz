@@ -64,6 +64,10 @@ int main(int argc, char *argv[])
     Links::registerScheme();
     MainWindow w;
     Links::listen(&w, [&w](const QString &opened) { w.openLink(opened); });
+    // Ручная проверка из меню Справка. Колбэк, а не прямой вызов: mainwindow.cpp
+    // намеренно не знает про updater.cpp, иначе тестовым целям пришлось бы
+    // тянуть Velopack, которую они не используют.
+    w.setUpdateCheck([&w]() { Updater::check(&w, true); });
     w.show();
     Updater::check(&w);
     if (!link.isEmpty()) QTimer::singleShot(0, &w, [&w, link]() { w.openLink(link); });

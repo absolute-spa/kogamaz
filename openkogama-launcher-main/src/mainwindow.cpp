@@ -219,15 +219,24 @@ MainWindow::MainWindow(QWidget *parent)
         DiscordPresence::join(m_hostClient, address, title);
         m_servers->reportPlaying(m_hostClient, address);
     });
-    auto *guide = new QAction("Host a server that stays online...", this);
+    auto *guide = new QAction(tr("Host a server that stays online..."), this);
     connect(guide, &QAction::triggered, this, []() {
         QDesktopServices::openUrl(QUrl("https://github.com/openkogama/openkogama-server/blob/main/HOSTING.md"));
     });
     ui->menuHelp->insertAction(ui->actionCredits, guide);
-    auto *serverSettings = new QAction("Server settings...", this);
+    // Ручная проверка обновлений. Автопроверка при старте молчит, если ей не
+    // удалось ответить, - без этого пункта игрок не может ни повторить проверку,
+    // ни увидеть её причину, и жалуется «обновление не работает».
+    // Идёт через колбэк - см. MainWindow::setUpdateCheck.
+    auto *checkUpdates = new QAction(tr("Check for updates"), this);
+    connect(checkUpdates, &QAction::triggered, this, [this]() {
+        if (m_updateCheck) m_updateCheck();
+    });
+    ui->menuHelp->insertAction(ui->actionCredits, checkUpdates);
+    auto *serverSettings = new QAction(tr("Server settings..."), this);
     connect(serverSettings, &QAction::triggered, this, &MainWindow::editServerSettings);
     ui->menuFile->addAction(serverSettings);
-    auto *admin = new QAction("Admin...", this);
+    auto *admin = new QAction(tr("Admin..."), this);
     connect(admin, &QAction::triggered, this, [this]() { AdminDialog(this).exec(); });
     ui->menuFile->addAction(admin);
     connect(m_share, &ShareBar::settingsRequested, this, &MainWindow::editServerSettings);
@@ -887,6 +896,10 @@ void MainWindow::offerVersion(const QStringList &clients, const QString &title, 
     if (!installed) return;
     loadInstances(progress.installedPath());
     then();
+}
+
+void MainWindow::setUpdateCheck(std::function<void()> check) {
+    m_updateCheck = check;
 }
 
 void MainWindow::openLink(const QString &link) {
