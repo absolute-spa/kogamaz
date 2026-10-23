@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Плагин NPC-ботов для openkogama-server.
+
+    Ссылаемся на OpenKogama.Api.dll из той сборки сервера, что лежит в
+    лаунчере, а не на исходники API: сервер отказывается грузить плагин,
+    собранный под более новый API, чем у него самого.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>kogamaz-npc</AssemblyName>
+    <RootNamespace>KogamazNpc</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ServerDir Condition="'$(ServerDir)' == ''">..\..\dist\bin\server</ServerDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="OpenKogama.Api">
+      <HintPath>$(ServerDir)\OpenKogama.Api.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

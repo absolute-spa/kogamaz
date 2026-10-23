@@ -35,6 +35,8 @@ private:
     // Соц-профиль: адрес своего сервера, пароль аккаунта, вход/регистрация.
     // Ник берётся из общего поля nicknameEdit — вводить его второй раз не нужно.
     void buildSocialGroup();
+    // Группы в прокрутку, OK/Cancel внизу - чтобы окно влезало на любой экран.
+    void wrapInScrollArea();
     void updateSocialStatus();
     void loadServers();
     void saveServers();

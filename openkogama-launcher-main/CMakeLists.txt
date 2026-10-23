@@ -44,6 +44,8 @@ qt_add_executable(KoGaMaZ
     src/friendsdialog.h src/friendsdialog.cpp
     src/chatdialog.h src/chatdialog.cpp
     src/worldmembersdialog.h src/worldmembersdialog.cpp
+    src/npcdialog.h src/npcdialog.cpp
+    src/serverplugins.h src/serverplugins.cpp
     src/settingsdialog.h src/settingsdialog.cpp src/settingsdialog.ui
     src/consolewindow.h src/consolewindow.cpp
     src/centereddelegate.h
@@ -145,7 +147,8 @@ if(BUILD_TESTING)
         src/profilepage.cpp src/profilepage.h
         src/appversion.h src/version.cpp src/version.h
         src/updatecheck.cpp src/updatecheck.h
-        src/worldmembersdialog.cpp src/worldmembersdialog.h)
+        src/worldmembersdialog.cpp src/worldmembersdialog.h
+        src/npcdialog.cpp src/npcdialog.h src/serverplugins.cpp src/serverplugins.h)
     target_include_directories(launcher-tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(launcher-tests PRIVATE Qt::Widgets Qt::Network Qt::Test Qt::CorePrivate Qt::Concurrent)
     qt_add_resources(launcher-tests "test_resources" PREFIX "/" BASE resources FILES resources/logo.png resources/versions.json resources/launcher.qss resources/openkogama-font.ttf resources/discord.png resources/install.png resources/unknown.png resources/launch.png resources/lemonplus.png resources/arrow-down.svg resources/check.svg resources/plus.svg resources/plus-light.svg resources/arrow-down-light.svg)
@@ -177,7 +180,8 @@ if(BUILD_TESTING)
         src/profilepage.cpp src/profilepage.h
         src/appversion.h src/version.cpp src/version.h
         src/updatecheck.cpp src/updatecheck.h
-        src/worldmembersdialog.cpp src/worldmembersdialog.h)
+        src/worldmembersdialog.cpp src/worldmembersdialog.h
+        src/npcdialog.cpp src/npcdialog.h src/serverplugins.cpp src/serverplugins.h)
     target_include_directories(launcher-shot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_link_libraries(launcher-shot PRIVATE Qt::Widgets Qt::Network Qt::CorePrivate Qt::Concurrent)
     qt_add_resources(launcher-shot "shot_resources" PREFIX "/" BASE resources

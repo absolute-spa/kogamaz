@@ -1,4 +1,5 @@
 #include "friendsdialog.h"
+#include "theme.h"
 
 #include "chatdialog.h"
 #include "settings.h"
@@ -49,7 +50,7 @@ FriendsDialog::FriendsDialog(QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(tr("Profile & Friends"));
-    resize(520, 640);
+    Theme::fitToScreen(this, {520, 640});
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(12, 12, 12, 12);
@@ -369,9 +370,14 @@ void FriendsDialog::reload()
     }
     if (m_stack->currentIndex() != 1) return;
 
-    m_accountLine->setText(Settings::socialHandle().isEmpty()
+    QString account = Settings::socialHandle().isEmpty()
         ? tr("Signed in as %1").arg(Settings::nickname())
-        : tr("Signed in as %1 (@%2)").arg(Settings::nickname(), Settings::socialHandle()));
+        : tr("Signed in as %1 (@%2)").arg(Settings::nickname(), Settings::socialHandle());
+    // На встроенном сервере база своя у каждого ПК: друг с другой машины
+    // в поиске не найдётся. Говорим об этом прямо, а не молча пустым поиском.
+    if (Settings::socialUrl().startsWith("http://127.0.0.1"))
+        account += "\n" + tr("Shared server is unreachable: search only covers this PC.");
+    m_accountLine->setText(account);
     loadFriends();
     loadRequests();
     loadHosting();

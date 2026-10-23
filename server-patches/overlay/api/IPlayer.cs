@@ -1,0 +1,41 @@
+using System.Numerics;
+
+namespace OpenKogama.Api;
+
+public interface IPlayer
+{
+    int Actor { get; }
+    int ProfileId { get; }
+    string Name { get; }
+    string ClientVersion { get; }
+    IWorld World { get; }
+    int Xp { get; }
+    int Gold { get; }
+    AvatarSkin Skin { get; }
+    Vector3? Position { get; }
+    bool Alive { get; }
+    // KoGaMaZ: игрок строит (аватар строительства), а не в тест-игре.
+    bool Building { get; }
+    bool IsAdmin { get; }
+    Team Team { get; }
+    AvatarItem Holding { get; }
+
+    int AddXp(int amount);
+    int AddGold(int amount);
+    void Message(string text, string? color = null);
+    void Say(string text);
+    void Notify(string text, bool brief = false);
+    void Announce(string text, string? icon = null);
+    void Damage(float amount, INpc? by = null, System.Numerics.Vector3? impulse = null);
+    // KoGaMaZ: бот попал из оружия - как попадание живого игрока (урон по
+    // умолчанию - урон этого оружия у игрока).
+    void Hit(AvatarItem weapon, INpc by, Vector3 impulse, float? damage = null);
+    bool SetTeam(Team team);
+    bool Teleport(Vector3 position, TeleportMethod method);
+    bool PressLocally(int id);
+    bool Equip(AvatarItem item);
+    bool GiveLightningSpeed();
+    bool EnterVehicle(IWorldObject vehicle);
+    bool BecomeColossus(IWorldObject trigger);
+    void Kick();
+}

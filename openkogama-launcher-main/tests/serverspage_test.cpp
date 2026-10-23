@@ -17,6 +17,7 @@
 #include "version.h"
 #include "updatecheck.h"
 #include "worldmembersdialog.h"
+#include "npcdialog.h"
 #include <QApplication>
 #include <QBuffer>
 #include <QComboBox>
@@ -1237,6 +1238,164 @@ private slots:
         QTRY_VERIFY(server.requests.contains("/api/worlds/42/members/id-friend"));
 
         Settings::setSocialUrl(QString());
+    }
+
+    // Окно NPC: читает маркеры, найденные плагином в режиме строительства,
+    // и пишет настройки в тот формат, который разбирает плагин.
+    void npcDialogEditsBotsOfOneWorld()
+    {
+        QDir().mkpath(QFileInfo(NpcDialog::markersPath()).absolutePath());
+        QFile::remove(NpcDialog::configPath());
+        {
+            QFile markers(NpcDialog::markersPath());
+            QVERIFY(markers.open(QIODevice::WriteOnly));
+            markers.write(R"({"worlds": {
+                "7": {"title": "Arena", "markers": [
+                    {"id": 11, "x": 1, "y": 2, "z": 3, "name": "Vasya"},
+                    {"id": 12, "x": 4, "y": 5, "z": 6}]},
+                "8": {"markers": [{"id": 99, "x": 0, "y": 0, "z": 0}]}}})");
+        }
+        // чужая карта в настройках должна пережить сохранение
+        {
+            QFile config(NpcDialog::configPath());
+            QVERIFY(config.open(QIODevice::WriteOnly));
+            config.write(R"({"worlds": {"8": {"npcs": {"99": {"name": "Other"}}}}})");
+        }
+
+        NpcDialog dialog(7, "Arena");
+        auto *tree = dialog.findChild<QTreeWidget *>("npcTree");
+        auto *name = dialog.findChild<QLineEdit *>("npcName");
+        auto *mode = dialog.findChild<QComboBox *>("npcMode");
+        auto *weapon = dialog.findChild<QComboBox *>("npcWeapon");
+        auto *team = dialog.findChild<QComboBox *>("npcTeam");
+        auto *difficulty = dialog.findChild<QComboBox *>("npcDifficulty");
+        auto *save = dialog.findChild<QPushButton *>("npcSave");
+        QVERIFY(tree && name && mode && weapon && team && difficulty && save);
+
+        // только маркеры этой карты; ник по умолчанию - подпись или Bot N
+        QCOMPARE(tree->topLevelItemCount(), 2);
+        QCOMPARE(tree->topLevelItem(0)->text(0), QString("Vasya"));
+        QCOMPARE(tree->topLevelItem(1)->text(0), QString("Bot 2"));
+
+        tree->setCurrentItem(tree->topLevelItem(0));
+        name->setText("Killer");
+        mode->setCurrentIndex(mode->findData("attack"));
+        weapon->setCurrentIndex(weapon->findData("shotgun"));
+        team->setCurrentIndex(team->findData("red"));
+        difficulty->setCurrentIndex(difficulty->findData("ultra"));
+        // переход на другую строку не теряет введённое
+        tree->setCurrentItem(tree->topLevelItem(1));
+        QVERIFY(mode->findData("walk") >= 0 && mode->findData("talk") >= 0);
+        mode->setCurrentIndex(mode->findData("idle"));
+        save->click();
+
+        QFile file(NpcDialog::configPath());
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const QJsonObject worlds = QJsonDocument::fromJson(file.readAll()).object().value("worlds").toObject();
+        const QJsonObject npcs = worlds.value("7").toObject().value("npcs").toObject();
+        const QJsonObject killer = npcs.value("11").toObject();
+        QCOMPARE(killer.value("name").toString(), QString("Killer"));
+        QCOMPARE(killer.value("weapon").toString(), QString("Shotgun"));
+        QCOMPARE(killer.value("team").toString(), QString("red"));
+        QCOMPARE(killer.value("difficulty").toString(), QString("ultra"));
+        QCOMPARE(npcs.value("12").toObject().value("mode").toString(), QString("idle"));
+        QCOMPARE(worlds.value("8").toObject().value("npcs").toObject().value("99").toObject()
+                     .value("name").toString(), QString("Other"));
+
+        QFile::remove(NpcDialog::configPath());
+        QFile::remove(NpcDialog::markersPath());
+    }
+
+    // Облик NPC из .kgavatar: файл проверяется, копируется к плагину и
+    // попадает в настройки; «Default» возвращает обычный облик.
+    void npcDialogLoadsAvatarFile()
+    {
+        QDir().mkpath(QFileInfo(NpcDialog::markersPath()).absolutePath());
+        QFile::remove(NpcDialog::configPath());
+        QDir(NpcDialog::avatarsPath()).removeRecursively();
+        {
+            QFile markers(NpcDialog::markersPath());
+            QVERIFY(markers.open(QIODevice::WriteOnly));
+            markers.write(R"({"worlds": {"7": {"markers": [{"id": 11, "x": 0, "y": 0, "z": 0}]}}})");
+        }
+        QTemporaryDir dir;
+        const QString good = dir.filePath("Ninja.kgavatar");
+        const QString bad = dir.filePath("broken.kgavatar");
+        {
+            QFile file(good);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(R"({"parts": [{"bone": "Head", "scale": 1, "cubes": "AAECAw=="}], "accessories": []})");
+            QFile other(bad);
+            QVERIFY(other.open(QIODevice::WriteOnly));
+            other.write(R"({"parts": [{"bone": "Head", "cubes": "not base64!"}]})");
+        }
+
+        NpcDialog dialog(7, "Arena");
+        auto *avatar = dialog.findChild<QLabel *>("npcAvatar");
+        auto *clear = dialog.findChild<QPushButton *>("npcAvatarClear");
+        auto *save = dialog.findChild<QPushButton *>("npcSave");
+        QVERIFY(avatar && clear && save);
+
+        QVERIFY(!dialog.useAvatar(bad));
+        QVERIFY(dialog.useAvatar(good));
+        QCOMPARE(avatar->text(), QString("Ninja"));
+        save->click();
+
+        const auto npc = [] {
+            QFile file(NpcDialog::configPath());
+            if (!file.open(QIODevice::ReadOnly)) return QJsonObject();
+            return QJsonDocument::fromJson(file.readAll()).object().value("worlds").toObject()
+                .value("7").toObject().value("npcs").toObject().value("11").toObject();
+        };
+        const QString copy = npc().value("avatar").toString();
+        QVERIFY(copy.endsWith(".kgavatar"));
+        QCOMPARE(npc().value("avatarName").toString(), QString("Ninja"));
+        QVERIFY(QFile::exists(NpcDialog::avatarsPath() + "/" + copy));
+
+        clear->click();
+        save->click();
+        QVERIFY(!npc().contains("avatar"));
+
+        QFile::remove(NpcDialog::configPath());
+        QFile::remove(NpcDialog::markersPath());
+        QDir(NpcDialog::avatarsPath()).removeRecursively();
+    }
+
+    // Поставили NPC в строительстве: плагин пишет запрос, и окно открывается
+    // само, сразу на этом NPC - даже если в список он попал не сразу.
+    void npcOpenerShowsJustPlacedBot()
+    {
+        QDir().mkpath(QFileInfo(NpcDialog::markersPath()).absolutePath());
+        QFile::remove(NpcDialog::configPath());
+        const auto write = [](const QString &path, const QByteArray &json) {
+            QFile file(path);
+            QVERIFY(file.open(QIODevice::WriteOnly));
+            file.write(json);
+        };
+        write(NpcDialog::markersPath(), R"({"worlds": {"7": {"markers": [{"id": 11, "x": 0, "y": 0, "z": 0}]}}})");
+        // старый запрос с прошлого запуска не открывается
+        write(NpcDialog::openRequestPath(), R"({"world": 7, "marker": 11, "at": "2020-01-01T00:00:00.000Z"})");
+
+        NpcOpener opener(nullptr);
+        opener.poll();
+        QVERIFY(!opener.dialog());
+
+        const QByteArray now = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs).toUtf8();
+        write(NpcDialog::openRequestPath(), R"({"world": 7, "title": "Arena", "marker": 12, "at": ")" + now + R"("})");
+        opener.poll();
+        QVERIFY(opener.dialog());
+        QCOMPARE(opener.dialog()->world(), 7);
+
+        // маркер 12 плагин вносит в список чуть позже
+        write(NpcDialog::markersPath(), R"({"worlds": {"7": {"markers": [
+            {"id": 11, "x": 0, "y": 0, "z": 0}, {"id": 12, "x": 1, "y": 0, "z": 0}]}}})");
+        auto *tree = opener.dialog()->findChild<QTreeWidget *>("npcTree");
+        QTRY_COMPARE(tree->topLevelItemCount(), 2);
+        QTRY_COMPARE(tree->currentItem()->data(0, Qt::UserRole).toString(), QString("12"));
+
+        QFile::remove(NpcDialog::openRequestPath());
+        QFile::remove(NpcDialog::configPath());
+        QFile::remove(NpcDialog::markersPath());
     }
 
     void cleanupTestCase()

@@ -1,4 +1,5 @@
 #include "chatdialog.h"
+#include "theme.h"
 
 #include "settings.h"
 
@@ -64,7 +65,7 @@ ChatDialog::ChatDialog(const QString &peerId, const QString &peerNick, const QSt
 {
     setWindowTitle(tr("Chat with %1").arg(m_peerNick));
     setObjectName("chatDialog");
-    resize(420, 560);
+    Theme::fitToScreen(this, {420, 560});
 
     auto *outer = new QVBoxLayout(this);
     outer->setContentsMargins(10, 10, 10, 10);

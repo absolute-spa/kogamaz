@@ -5,7 +5,12 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QHash>
+#include <QGuiApplication>
 #include <QProxyStyle>
+#include <QScreen>
+#include <QWidget>
+
+#include <algorithm>
 
 namespace {
 
@@ -85,4 +90,28 @@ QStyle *Theme::style() {
 
 bool Theme::dark() {
     return true;
+}
+
+void Theme::fitToScreen(QWidget *window, const QSize &preferred) {
+    if (!window) return;
+    QWidget *anchor = window->parentWidget() ? window->parentWidget()->window() : nullptr;
+    QScreen *screen = anchor ? anchor->screen() : window->screen();
+    if (!screen) screen = QGuiApplication::primaryScreen();
+    if (!screen) {
+        window->resize(preferred);
+        return;
+    }
+
+    // Запас под рамку и заголовок окна: availableGeometry их не учитывает.
+    const QRect area = screen->availableGeometry();
+    const QSize room(area.width() * 92 / 100, area.height() * 92 / 100);
+    window->resize(preferred.boundedTo(room).expandedTo(window->minimumSize().boundedTo(room)));
+
+    // Центрируем по родителю, но так, чтобы окно целиком осталось на экране.
+    const QPoint center = anchor ? anchor->frameGeometry().center() : area.center();
+    QRect frame(QPoint(0, 0), window->size());
+    frame.moveCenter(center);
+    frame.moveLeft(std::clamp(frame.left(), area.left(), std::max(area.left(), area.right() - frame.width())));
+    frame.moveTop(std::clamp(frame.top(), area.top(), std::max(area.top(), area.bottom() - frame.height())));
+    window->move(frame.topLeft());
 }

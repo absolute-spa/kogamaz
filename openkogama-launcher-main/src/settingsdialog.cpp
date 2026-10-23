@@ -21,6 +21,8 @@
 #include <QPointer>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTcpSocket>
 #include <QUdpSocket>
 #include <QTableWidget>
@@ -115,8 +117,51 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     buildThemeGroup();
     buildNetworkGroup();
     buildSocialGroup();
-    // таблица серверов с пингом требует места, дефолтный размер из .ui тесен
-    resize(470, 880);
+    wrapInScrollArea();
+    // таблица серверов с пингом требует места, дефолтный размер из .ui тесен;
+    // на маленьком экране окно ужимается, а остальное листается прокруткой
+    Theme::fitToScreen(this, {470, 880});
+}
+
+// Все группы уезжают в прокрутку, OK/Cancel остаются внизу. Без этого на
+// ноутбуке с масштабом 125-150% окно не помещалось по высоте: Qt сжимал
+// таблицу серверов, кнопки налезали на строки, а «Создать аккаунт» и OK
+// оказывались за краем экрана.
+void SettingsDialog::wrapInScrollArea()
+{
+    auto *scroll = new QScrollArea(this);
+    scroll->setObjectName("settingsScroll");
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scroll->setStyleSheet(QStringLiteral("QScrollArea, QWidget#settingsContent { background: transparent; }"));
+    scroll->viewport()->setAutoFillBackground(false);
+
+    auto *content = new QWidget(scroll);
+    content->setObjectName("settingsContent");
+    content->setAutoFillBackground(false);
+    auto *inner = new QVBoxLayout(content);
+    // справа отступ под полосу прокрутки, чтобы она не легла на поля ввода
+    inner->setContentsMargins(0, 0, 12, 0);
+    inner->setSpacing(ui->verticalLayout->spacing());
+
+    for (int i = 0; i < ui->verticalLayout->count();) {
+        QLayoutItem *item = ui->verticalLayout->itemAt(i);
+        if (item->widget() == ui->buttonBox) { ++i; continue; }
+        ui->verticalLayout->takeAt(i);
+        if (QWidget *widget = item->widget()) inner->addWidget(widget);
+        delete item;   // распорку из .ui заменяет addStretch ниже
+    }
+    inner->addStretch(1);
+
+    scroll->setWidget(content);
+    // setWidget сам включает заливку - без отката содержимое светлеет
+    content->setAutoFillBackground(false);
+    // Прокрутка только вертикальная, поэтому ширину содержимого надо отдать
+    // целиком, иначе поля обрежутся справа.
+    scroll->setMinimumWidth(content->minimumSizeHint().width()
+                            + scroll->verticalScrollBar()->sizeHint().width());
+    ui->verticalLayout->insertWidget(0, scroll, 1);
 }
 
 SettingsDialog::~SettingsDialog()

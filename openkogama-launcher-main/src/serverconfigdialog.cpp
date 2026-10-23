@@ -1,4 +1,5 @@
 #include "serverconfigdialog.h"
+#include "theme.h"
 #include "paths.h"
 #include <QDesktopServices>
 #include <QDialogButtonBox>
@@ -106,7 +107,7 @@ ServerConfigDialog::ServerConfigDialog(QWidget *parent)
     : QDialog(parent), m_text(new QPlainTextEdit(this)), m_error(new QLabel(this))
 {
     setWindowTitle("Server settings");
-    resize(520, 420);
+    Theme::fitToScreen(this, {520, 420});
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);

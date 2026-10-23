@@ -1,8 +1,12 @@
 #include "mainwindow.h"
 #include "settings.h"
+#include "settingsdialog.h"
 #include "theme.h"
 
 #include <QApplication>
+#include <QScreen>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QFile>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -29,8 +33,30 @@ int main(int argc, char **argv)
     const QString socialUrl = argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
     if (!socialUrl.isEmpty()) Settings::setSocialUrl(socialUrl);
 
+    // Снимок окна настроек: проверить, что на маленьком экране оно влезает
+    // и листается, а не уводит кнопки за край.
+    if (qEnvironmentVariableIsSet("SHOT_SETTINGS")) {
+        SettingsDialog dialog;
+        dialog.show();
+        QTimer::singleShot(1200, [&]() {
+            // SHOT_SCROLL=0..100 - куда промотать, в процентах
+            if (auto *scroll = dialog.findChild<QScrollArea *>("settingsScroll"); scroll
+                && qEnvironmentVariableIsSet("SHOT_SCROLL")) {
+                QScrollBar *bar = scroll->verticalScrollBar();
+                bar->setValue(bar->maximum() * qEnvironmentVariableIntValue("SHOT_SCROLL") / 100);
+            }
+            const QString out = qEnvironmentVariable("SHOT_OUT");
+            dialog.grab().save(out.isEmpty() ? QStringLiteral("kogamaz-settings.png") : out);
+            QTextStream(stdout) << "settings " << dialog.width() << "x" << dialog.height()
+                                << " screen " << dialog.screen()->availableGeometry().width() << "x"
+                                << dialog.screen()->availableGeometry().height() << "\n";
+            app.quit();
+        });
+        return app.exec();
+    }
+
     MainWindow window;
-    window.resize(1180, 760);
+    if (!qEnvironmentVariableIsSet("SHOT_FIT")) window.resize(1180, 760);
     window.show();
 
     QTimer::singleShot(1200, [&]() {

@@ -18,6 +18,7 @@
 #include "friendsdialog.h"
 #include "social.h"
 #include "localsocialserver.h"
+#include "npcdialog.h"
 #include "brandlogo.h"
 #include "playerstats.h"
 #include "profilepage.h"
@@ -141,6 +142,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     setWindowTitle("KoGaMaZ");
+    // 1000x680 из .ui не влезает на ноутбук 1366x768 с масштабом 150%.
+    Theme::fitToScreen(this, {1000, 680});
     // Граффити-логотип рисуем кодом: файла рисунка в проекте нет.
     ui->logoLabel->setPixmap(BrandLogo::render(ui->logoLabel->size()));
     ui->versionCombo->setPlaceholderText("No versions installed");
@@ -295,6 +298,8 @@ MainWindow::MainWindow(QWidget *parent)
         qWarning("kogamaz social: %s", qPrintable(reason));
     });
     const QString localUrl = m_socialServer->start();
+    m_localSocialUrl = localUrl;
+    m_socialManaged = unmanaged;
 
     if (unmanaged) {
         // Локальным заполняем адрес сразу, чтобы соц-вызовам было куда идти,
@@ -313,8 +318,18 @@ MainWindow::MainWindow(QWidget *parent)
     m_presenceTimer = new QTimer(this);
     m_presenceTimer->setInterval(30000);
     connect(m_presenceTimer, &QTimer::timeout, this, &MainWindow::announcePresence);
+    // Общий сервер не ответил на старте - пробуем снова раз в минуту и
+    // переключаемся, как только он проснётся, без перезапуска лаунчера.
+    connect(m_presenceTimer, &QTimer::timeout, this, [this]() {
+        if (++m_probeTick % 2) return;
+        const QString shared = Settings::sharedSocialUrl();
+        if (!m_socialManaged || shared.isEmpty() || Settings::socialUrl() == shared) return;
+        probeSharedSocial(shared, m_localSocialUrl);
+    });
     m_presenceTimer->start();
     announcePresence();
+    // Поставили NPC в строительстве - окно его настроек открывается само.
+    new NpcOpener(this);
     connect(ui->addVersionButton, &QToolButton::clicked, this, &MainWindow::onInstallTriggered);
     auto *versionMenu = new QMenu(this);
     versionMenu->addAction(ui->actionRenameVersion);
@@ -982,16 +997,20 @@ void MainWindow::announcePresence()
 
 void MainWindow::probeSharedSocial(const QString &sharedUrl, const QString &localUrl)
 {
-    // Таймаут нарочно короткий: мёртвый домен обязан отвалиться быстро, а не
-    // держать соц-функции в неопределённом состоянии. Проверяем именно
-    // /api/health: это тот же пинг, которым пользуются диалоги.
+    // Пока идёт проверка, соц-вызовы уже ходят на локальный сервер, так что
+    // ждать можно долго: бесплатный хостинг после простоя просыпается
+    // десятки секунд, и 3 секунды его всегда отсекали. Мёртвый домен
+    // отваливается сразу на DNS и таймаута не ждёт.
+    if (m_probing) return;
+    m_probing = true;
     auto *net = new QNetworkAccessManager(this);
     QNetworkRequest request{QUrl(sharedUrl + "/api/health")};
-    request.setTransferTimeout(3000);
+    request.setTransferTimeout(25000);
     QNetworkReply *reply = net->get(request);
     connect(reply, &QNetworkReply::finished, this, [this, reply, net, sharedUrl, localUrl]() {
         reply->deleteLater();
         net->deleteLater();
+        m_probing = false;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         if (status == 200) {
             // Общий сервер жив - переключаемся: там общие друзья, посты и

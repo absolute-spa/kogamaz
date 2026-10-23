@@ -101,6 +101,12 @@ private:
     QTimer *m_presenceTimer = nullptr;
     // Встроенный соц-сервер: живёт всё время работы окна, наружу не светится.
     LocalSocialServer *m_socialServer = nullptr;
+    // Пока общий сервер не ответил, пробуем его снова раз в минуту: сервер на
+    // бесплатном хостинге просыпается дольше, чем длится первая проверка.
+    QString m_localSocialUrl;
+    bool m_socialManaged = false;   // адрес соц-сервера выбирает сам лаунчер
+    bool m_probing = false;
+    int m_probeTick = 0;
     // Ник / уровень / опыт в шапке; обновляется после входа и публикаций.
     PlayerStats *m_stats = nullptr;
     // Вкладка «Profile»: аккаунт и посты в боковом меню.

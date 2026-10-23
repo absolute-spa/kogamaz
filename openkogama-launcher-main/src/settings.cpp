@@ -16,6 +16,30 @@ QSettings store()
     return QSettings(Paths::data() + "/settings.ini", QSettings::IniFormat);
 }
 
+// Адрес общего соц-сервера по умолчанию.
+const QString SharedSocialDefault = QStringLiteral("__SHARED_SOCIAL_URL__");
+
+// Старый адрес из 1.0.3: домен больше не резолвится. Кто его уже сохранил в
+// настройках, тот застрял бы на мёртвом сервере - такие значения сбрасываем.
+const QString DeadSharedSocial = QStringLiteral("https://kogamaz.duckdns.org/social");
+
+bool isDeadShared(const QString &url)
+{
+    QString cleaned = url.trimmed();
+    while (cleaned.endsWith('/')) cleaned.chop(1);
+    return cleaned.compare(DeadSharedSocial, Qt::CaseInsensitive) == 0;
+}
+
+// Ключ токена для сервера. Встроенный сервер каждый запуск берёт новый порт,
+// а база у него одна, поэтому все 127.0.0.1 - это один и тот же "local".
+QString tokenKey(const QString &url)
+{
+    if (url.startsWith("http://127.0.0.1")) return QStringLiteral("social/tokens/local");
+    QString key = url.toLower();
+    key.replace(QRegularExpression("[^a-z0-9]+"), "_");
+    return "social/tokens/" + key;
+}
+
 }
 
 namespace Settings {
@@ -127,6 +151,7 @@ QString socialUrl()
     // Пусто по умолчанию: пользователь сам указывает адрес своего сервера.
     // Приводим к виду без завершающего слэша, чтобы склеивать маршруты.
     const QString url = store().value("social/url").toString().trimmed();
+    if (isDeadShared(url)) return QString();
     QString cleaned = url;
     while (cleaned.endsWith('/')) cleaned.chop(1);
     return cleaned;
@@ -154,9 +179,11 @@ QString sharedSocialUrl()
     // умолчанию; ключ есть, но пустой - общий сервер выключен совсем и
     // работает только встроенный локальный.
     QSettings settings = store();
-    if (settings.contains("social/shared"))
-        return settings.value("social/shared").toString().trimmed();
-    return QStringLiteral("https://kogamaz.duckdns.org/social");
+    if (settings.contains("social/shared")) {
+        const QString stored = settings.value("social/shared").toString().trimmed();
+        if (!isDeadShared(stored)) return stored;
+    }
+    return SharedSocialDefault;
 }
 
 void setSocialShared(const QString &url)
@@ -168,12 +195,37 @@ void setSocialShared(const QString &url)
 
 QString socialToken()
 {
-    return store().value("social/token").toString();
+    // Токен выдаёт конкретный сервер, и другому он не годится: раньше токен
+    // встроенного сервера уходил на общий, тот отвечал 401, а лаунчер всё
+    // равно считал игрока вошедшим. Теперь у каждого сервера свой токен.
+    const QString url = socialUrl();
+    if (url.isEmpty()) return QString();
+    QSettings settings = store();
+
+    // Миграция с 1.0.3: там токен был один, и выдавал его встроенный сервер -
+    // общий в 1.0.3 не отвечал.
+    if (settings.contains("social/token")) {
+        const QString legacy = settings.value("social/token").toString();
+        if (!legacy.isEmpty() && !settings.contains("social/tokens/local"))
+            settings.setValue("social/tokens/local", legacy);
+        settings.remove("social/token");
+    }
+    return settings.value(tokenKey(url)).toString();
 }
 
 void setSocialToken(const QString &token)
 {
-    store().setValue("social/token", token);
+    const QString url = socialUrl();
+    QSettings settings = store();
+    settings.remove("social/token");
+    // Сервер не задан - привязать не к чему. Пустой токен тогда значит
+    // "выйти отовсюду", непустой просто некуда записать.
+    if (url.isEmpty()) {
+        if (token.isEmpty()) settings.remove("social/tokens");
+        return;
+    }
+    if (token.isEmpty()) settings.remove(tokenKey(url));
+    else settings.setValue(tokenKey(url), token);
 }
 
 QString socialId()

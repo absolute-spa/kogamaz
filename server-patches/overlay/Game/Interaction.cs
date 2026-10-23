@@ -1,0 +1,151 @@
+using System.Numerics;
+using OpenKogama.Handlers;
+using OpenKogama.World;
+
+namespace OpenKogama.Game;
+
+public enum InteractionType : byte
+{
+    None = 0,
+    ProjectileStandard = 1,
+    ImpulseGunHit = 2,
+    RailGunHit = 4,
+    SwordHit = 5,
+    MutantHit = 6,
+    ShotgunHit = 7,
+    FlamethrowerHit = 8,
+    CenterGun = 9,
+    SentryTowerFire = 10,
+    SentryTowerIce = 11,
+    AdvancedGhostBodyRotateWeapon = 12,
+    ProximityDamageAndImpulse = 13,
+    SixShooterHit = 14,
+    ThrowingStarHit = 15,
+    MouseGunHit = 16,
+    GrowthGunHit = 17,
+    IceGunHit = 18,
+    CustomGunHit = 19,
+    GodzillaLaserHit = 19,
+    MultiThrowingStarHit = 24,
+    DoubleSixShooterHit = 25,
+    SlapGunHit = 26,
+    VehicleHit = 28,
+}
+
+public enum KilledBy : byte
+{
+    None, CenterGun, BazookaGun, RailGun, Suicide, Impact, Environmental, Sword, Explosive, Fire, FallOffWorld, Mutant, Shotgun,
+    FlameThrower, Crushed, Ghost, AdvancedGhost, SixShooter, DoubleSixShooter, ThrowingStar, MultiThrowingStar, GodzillaLaser, KillZone, SlapGun,
+}
+
+public readonly record struct Interaction(InteractionType Type, float Damage, Vector3 Impulse, KilledBy KilledBy)
+{
+    const byte HasType = 1;
+    const byte HasDamage = 2;
+    const byte HasImpulse = 4;
+    const byte HasKilledBy = 8;
+
+    static readonly Dictionary<InteractionType, float> SharedDamage = new()
+    {
+        [InteractionType.CenterGun] = 11.5f,
+        [InteractionType.MutantHit] = 110f,
+        [InteractionType.RailGunHit] = 100f,
+        [InteractionType.ShotgunHit] = 13f,
+        [InteractionType.SixShooterHit] = 12.5f,
+        [InteractionType.DoubleSixShooterHit] = 12.5f,
+        [InteractionType.SwordHit] = 15f,
+        [InteractionType.ThrowingStarHit] = 15f,
+        [InteractionType.MultiThrowingStarHit] = 7.5f,
+        [InteractionType.SlapGunHit] = 35f,
+    };
+
+    // KoGaMaZ: урон оружия, как его считает клиент живого игрока.
+    public static float DamageOf(InteractionType type) => SharedDamage.GetValueOrDefault(type);
+
+    // KoGaMaZ: каким попаданием бьёт оружие в руках - бот стреляет так же,
+    // как игрок, и в ленте убийств видно оружие.
+    public static (InteractionType Type, KilledBy KilledBy) ForWeapon(Kogama.AvatarItemType item) => item switch
+    {
+        Kogama.AvatarItemType.CenterGun => (InteractionType.CenterGun, KilledBy.CenterGun),
+        Kogama.AvatarItemType.Shotgun => (InteractionType.ShotgunHit, KilledBy.Shotgun),
+        Kogama.AvatarItemType.RailGun => (InteractionType.RailGunHit, KilledBy.RailGun),
+        Kogama.AvatarItemType.Bazooka => (InteractionType.ProximityDamageAndImpulse, KilledBy.BazookaGun),
+        Kogama.AvatarItemType.SixShooter => (InteractionType.SixShooterHit, KilledBy.SixShooter),
+        Kogama.AvatarItemType.DoubleSixShooter => (InteractionType.DoubleSixShooterHit, KilledBy.DoubleSixShooter),
+        Kogama.AvatarItemType.Flamethrower => (InteractionType.FlamethrowerHit, KilledBy.FlameThrower),
+        Kogama.AvatarItemType.ImpulseGun => (InteractionType.ImpulseGunHit, KilledBy.None),
+        Kogama.AvatarItemType.Sword => (InteractionType.SwordHit, KilledBy.Sword),
+        _ => (InteractionType.ProximityDamageAndImpulse, KilledBy.Mutant),
+    };
+
+    // KoGaMaZ: первые попадания каждого типа - в лог, чтобы подогнать
+    // отбрасывание от бота под настоящее.
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<(InteractionType, string), int> Logged = new();
+    const int LogPerType = 3;
+
+    public static void Calibrate(Interaction hit, string what)
+    {
+        if (Logged.AddOrUpdate((hit.Type, what), 1, (_, count) => count + 1) > LogPerType) return;
+        Console.WriteLine($"hit {what}: {hit.Type} dmg {hit.Damage:0.##} impulse ({hit.Impulse.X:0.##}, {hit.Impulse.Y:0.##}, {hit.Impulse.Z:0.##}) |{hit.Impulse.Length():0.##}|");
+    }
+
+    public byte[] ToBytes()
+    {
+        var writer = new BytePackerWriter();
+        byte flags = HasType;
+        writer.WriteByte(flags);
+        writer.WriteByte((byte)Type);
+        if (Damage != 0f)
+        {
+            flags |= HasDamage;
+            writer.WriteSingle(Damage);
+        }
+        if (Impulse.LengthSquared() > 1E-05f)
+        {
+            flags |= HasImpulse;
+            writer.WriteSingle(Impulse.X);
+            writer.WriteSingle(Impulse.Y);
+            writer.WriteSingle(Impulse.Z);
+        }
+        if (KilledBy != KilledBy.None)
+        {
+            flags |= HasKilledBy;
+            writer.WriteByte((byte)KilledBy);
+        }
+        byte[] packet = writer.ToArray();
+        packet[0] = flags;
+        return packet;
+    }
+
+    public static List<Interaction> Parse(object? rpcData)
+    {
+        var interactions = new List<Interaction>();
+        if (PhotonValues.Normalize(rpcData) is not Dictionary<object, object?> table) return interactions;
+        foreach ((object key, object? value) in table)
+            if (Convert.ToInt32(key) == 0 && value is byte[] { Length: > 0 } packet && Read(packet) is Interaction interaction)
+                interactions.Add(interaction);
+        return interactions;
+    }
+
+    static Interaction? Read(byte[] packet)
+    {
+        try
+        {
+            var reader = new BytePackerReader(packet);
+            byte flags = reader.ReadByte();
+            var type = (flags & HasType) != 0 ? (InteractionType)reader.ReadByte() : InteractionType.None;
+            float damage = (flags & HasDamage) != 0 ? reader.ReadSingle() : SharedDamage.GetValueOrDefault(type);
+            Vector3 impulse = (flags & HasImpulse) != 0 ? new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()) : Vector3.Zero;
+            var killedBy = (flags & HasKilledBy) != 0 ? (KilledBy)reader.ReadByte() : KilledBy.None;
+            return new Interaction(type, damage, impulse, killedBy);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
+        catch (IndexOutOfRangeException)
+        {
+            return null;
+        }
+    }
+}

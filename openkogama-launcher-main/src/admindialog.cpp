@@ -1,4 +1,5 @@
 #include "admindialog.h"
+#include "theme.h"
 #include "paths.h"
 #include "serverconfigdialog.h"
 #include <QComboBox>
@@ -85,7 +86,7 @@ AdminDialog::AdminDialog(QWidget *parent)
     : QDialog(parent), m_net(new QNetworkAccessManager(this)), m_status(new QLabel(this))
 {
     setWindowTitle(tr("Admin"));
-    resize(560, 380);
+    Theme::fitToScreen(this, {560, 380});
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 12, 12, 12);
     layout->setSpacing(10);

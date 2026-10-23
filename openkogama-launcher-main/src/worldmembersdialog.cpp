@@ -1,4 +1,5 @@
 #include "worldmembersdialog.h"
+#include "theme.h"
 
 #include <QComboBox>
 #include <QDialogButtonBox>
@@ -6,6 +7,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
+#include <QPointer>
 #include <QPushButton>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -52,7 +54,7 @@ WorldMembersDialog::WorldMembersDialog(int world, const QString &title, QWidget 
     setWindowTitle(title.trimmed().isEmpty()
                        ? QStringLiteral("Co-authors")
                        : QStringLiteral("Co-authors of %1").arg(title.trimmed()));
-    resize(540, 420);
+    Theme::fitToScreen(this, {540, 420});
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(12, 12, 12, 12);
@@ -154,9 +156,13 @@ void WorldMembersDialog::updateButtons()
     m_invite->setEnabled(manage && m_friend->count() > 0);
 }
 
+// Ответ сервера может прийти, когда окно уже закрыли и удалили, - self
+// это ловит.
 void WorldMembersDialog::reload()
 {
-    Social::worldMembers(m_world, [this](bool ok, const QJsonObject &json, const QString &error) {
+    const QPointer<WorldMembersDialog> self(this);
+    Social::worldMembers(m_world, [this, self](bool ok, const QJsonObject &json, const QString &error) {
+        if (!self) return;
         if (!ok) { showProblem(error); return; }
         fill(json);
     });
@@ -186,7 +192,9 @@ void WorldMembersDialog::fill(const QJsonObject &body)
 
 void WorldMembersDialog::loadFriends()
 {
-    Social::friends([this](bool ok, const QJsonObject &json, const QString &error) {
+    const QPointer<WorldMembersDialog> self(this);
+    Social::friends([this, self](bool ok, const QJsonObject &json, const QString &error) {
+        if (!self) return;
         if (!ok) { showProblem(error); return; }
 
         const QList<Social::Friend> friends = Social::friendListOf(json);
@@ -208,8 +216,10 @@ void WorldMembersDialog::invite()
     const QString role = m_role->currentData().toString();
     m_invite->setEnabled(false);
 
+    const QPointer<WorldMembersDialog> self(this);
     Social::inviteToWorld(m_world, player, role,
-        [this, player, role](bool ok, const QJsonObject &json, const QString &error) {
+        [this, self, player, role](bool ok, const QJsonObject &json, const QString &error) {
+            if (!self) return;
             Q_UNUSED(json)
             if (!ok) { showProblem(error); updateButtons(); return; }
             Q_UNUSED(player)
@@ -240,8 +250,10 @@ void WorldMembersDialog::changeRole()
 
 void WorldMembersDialog::applyRole(const QString &player, const QString &role)
 {
+    const QPointer<WorldMembersDialog> self(this);
     Social::inviteToWorld(m_world, player, role,
-        [this](bool ok, const QJsonObject &json, const QString &error) {
+        [this, self](bool ok, const QJsonObject &json, const QString &error) {
+            if (!self) return;
             Q_UNUSED(json)
             if (!ok) { showProblem(error); return; }
             reload();
@@ -252,8 +264,10 @@ void WorldMembersDialog::removeMember()
 {
     QTreeWidgetItem *item = selectedMember();
     if (!item) return;
+    const QPointer<WorldMembersDialog> self(this);
     Social::removeWorldMember(m_world, item->data(0, PlayerRole).toString(),
-        [this](bool ok, const QJsonObject &json, const QString &error) {
+        [this, self](bool ok, const QJsonObject &json, const QString &error) {
+            if (!self) return;
             Q_UNUSED(json)
             if (!ok) { showProblem(error); return; }
             reload();

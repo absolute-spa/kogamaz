@@ -11,6 +11,7 @@
 #include "serverconfigdialog.h"
 #include "settings.h"
 #include "worldmembersdialog.h"
+#include "npcdialog.h"
 #include <QEvent>
 #include <QFutureWatcher>
 #include <QLocale>
@@ -153,6 +154,7 @@ WorldsDialog::WorldsDialog(const QString &path, const QString &exe, QProcess *se
     worldMenu->addAction("Export...", this, &WorldsDialog::exportWorld);
     worldMenu->addAction("Rename", this, &WorldsDialog::renameWorld);
     worldMenu->addAction("Co-authors...", this, &WorldsDialog::showCoAuthors);
+    worldMenu->addAction("NPC...", this, &WorldsDialog::showNpcs);
     worldMenu->addSeparator();
     worldMenu->addAction("Delete...", this, &WorldsDialog::deleteWorld);
     ui->moreWorldButton->setMenu(worldMenu);
@@ -713,6 +715,7 @@ void WorldsDialog::showWorldMenu(const QPoint &pos) {
     QAction *exported = menu.addAction("Export...");
     QAction *rename = menu.addAction("Rename");
     QAction *coAuthors = menu.addAction("Co-authors...");
+    QAction *npcs = menu.addAction("NPC...");
     QAction *remove = menu.addAction("Delete");
 
     QAction *chosen = menu.exec(ui->worldsList->viewport()->mapToGlobal(pos));
@@ -721,6 +724,7 @@ void WorldsDialog::showWorldMenu(const QPoint &pos) {
     else if (chosen == exported) exportWorld();
     else if (chosen == rename) renameWorld();
     else if (chosen == coAuthors) showCoAuthors();
+    else if (chosen == npcs) showNpcs();
     else if (chosen == remove) deleteWorld();
 }
 
@@ -729,6 +733,14 @@ void WorldsDialog::showCoAuthors() {
     if (world == 0) return;
     QListWidgetItem *item = ui->worldsList->currentItem();
     WorldMembersDialog dialog(world, item ? item->data(NameRole).toString() : QString(), this);
+    dialog.exec();
+}
+
+void WorldsDialog::showNpcs() {
+    const int world = selectedWorld();
+    if (world == 0) return;
+    QListWidgetItem *item = ui->worldsList->currentItem();
+    NpcDialog dialog(world, item ? item->data(NameRole).toString() : QString(), this);
     dialog.exec();
 }
 

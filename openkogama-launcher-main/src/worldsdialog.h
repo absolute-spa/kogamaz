@@ -55,6 +55,8 @@ private:
     void renameWorld();
     // Роли соавторов выбранного мира: кто владеет, кто зовёт следующих.
     void showCoAuthors();
+    // NPC-боты выбранного мира: ник, поведение, оружие, команда, сложность.
+    void showNpcs();
     void deleteWorld();
     void onWorldRenamed(QListWidgetItem *item);
     void showWorldMenu(const QPoint &pos);

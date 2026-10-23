@@ -688,6 +688,33 @@ private slots:
         Settings::setSocialToken(QString());
     }
 
+    void tokenBelongsToItsServer()
+    {
+        // Токен встроенного сервера не должен уходить на общий: там он
+        // неизвестен, и лаунчер считал бы игрока вошедшим при сплошных 401.
+        const QString local = Settings::socialUrl();
+        Settings::setSocialToken(QStringLiteral("tok-local"));
+
+        Settings::setSocialUrl(QStringLiteral("https://social.example.org"));
+        QVERIFY2(Settings::socialToken().isEmpty(), "another server must not get the local token");
+        Settings::setSocialToken(QStringLiteral("tok-shared"));
+
+        // Встроенный сервер берёт новый порт на каждом запуске, а база одна -
+        // вход на нём переживает смену порта.
+        Settings::setSocialUrl(QStringLiteral("http://127.0.0.1:1"));
+        QCOMPARE(Settings::socialToken(), QStringLiteral("tok-local"));
+
+        Settings::setSocialUrl(QStringLiteral("https://social.example.org/"));
+        QCOMPARE(Settings::socialToken(), QStringLiteral("tok-shared"));
+
+        // Мёртвый адрес из 1.0.3 сбрасывается, а не держит лаунчер на себе.
+        Settings::setSocialUrl(QStringLiteral("https://kogamaz.duckdns.org/social"));
+        QVERIFY(Settings::socialUrl().isEmpty());
+
+        Settings::setSocialUrl(local);
+        Settings::setSocialToken(QString());
+    }
+
     void accountKeepsPassword()
     {
         // Данные переживают перезапуск сервера: аккаунт читается из файла

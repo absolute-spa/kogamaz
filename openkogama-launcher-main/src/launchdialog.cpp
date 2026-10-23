@@ -1,6 +1,7 @@
 #include "launchdialog.h"
 #include "assetinstaller.h"
 #include "paths.h"
+#include "serverplugins.h"
 #include "ui_launchdialog.h"
 #include <QDialogButtonBox>
 #include <QDir>
@@ -149,6 +150,9 @@ void LaunchDialog::startServer() {
 
     setStep("Starting server...", AssetsEnd + 5);
     QDir().mkpath(Paths::serverData());
+    // NPC и прочие плагины из сборки лаунчера - в plugins/ рабочей папки сервера
+    const QString plugins = ServerPlugins::install();
+    if (!plugins.isEmpty()) qWarning("kogamaz plugins: %s", qPrintable(plugins));
     choosePorts(m_retried, m_retried ? busyPort() : 0);
     QStringList arguments{"--http", QString::number(LocalHttpPort), "--photon", QString::number(LocalPhotonPort)};
     if (m_offline) arguments.append("--offline");

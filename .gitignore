@@ -9,6 +9,8 @@ dist/
 *.so
 *.dll
 *.exe
+server-plugins/**/bin/
+server-plugins/**/obj/
 
 # Портативный архив и распакованная сборка
 KoGaMaZ.zip
